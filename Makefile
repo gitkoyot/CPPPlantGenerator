@@ -31,6 +31,7 @@ CLANGLIBS = \
 -lclangLex\
 -lclangBasic\
 -lclang \
+-lboost_regex \
 $(shell $(LLVMCONFIG) --libs)\
                 -lcurses
 

@@ -8,7 +8,12 @@
 #include <map>
 #include <cstdlib>
 #include <cstring>
+
+#include <boost/regex.hpp>
+
+
 using namespace std;
+
 
 //the following are UBUNTU/LINUX ONLY terminal color codes.
 #define RESET   "\033[0m"
@@ -94,8 +99,11 @@ static stringstream output;
 static int numspaces = 0;
 bool descInnerFile = false;
 bool descDependencies = false;
+bool genDiagnostics = false;
 typedef vector<CXCursor> dependenciesList;
 dependenciesList dependecies;
+boost::regex file_regex; //because std still sucks
+const string extensions("(\\.cpp|\\.h|\\.c)");
 ////////////////////////////////////////////////////////////////////////////////
 std::string
 getCursorText(CXCursor cur)
@@ -312,7 +320,7 @@ void describeCursor (const CXCursor& cursor,ostream& out)
 
 ////////////////////////////////////////////////////////////////////////////////
 CXChildVisitResult
-visitor(CXCursor cursor, CXCursor parent, CXClientData clientData)
+node_visitor(CXCursor cursor, CXCursor parent, CXClientData clientData)
 {
   std::string &fileName(*static_cast<std::string*>(clientData));
 
@@ -332,7 +340,7 @@ visitor(CXCursor cursor, CXCursor parent, CXClientData clientData)
 
   clang_disposeString(cursor_file_location);
 
-  if (filename.find(fileName.c_str()) == std::string::npos)
+  if (false == boost::regex_match( filename, file_regex))
     return CXChildVisit_Continue;
 
   if (descInnerFile)
@@ -347,7 +355,7 @@ visitor(CXCursor cursor, CXCursor parent, CXClientData clientData)
   if (true == do_we_want_to_go_deeper)
     {
       numspaces++;
-      clang_visitChildren(cursor, visitor, (CXClientData) &fileName);
+      clang_visitChildren(cursor, node_visitor, (CXClientData) &fileName);
       numspaces--;
     }
 
@@ -535,40 +543,57 @@ void handle_dependencies(dependenciesList& dep)
 
         }
 
-      if (are_we_interested)
+      if (are_we_interested && CXCursor_NoDeclFound != destination_cursor.kind)
         {
-
+          if (descDependencies)
+            cerr<<"Adding to dependencies"<<endl;
           (*where_to_add)[source_cursor].insert(destination_cursor);
         }
     }
-  output<<endl;
-  handle_dependency_list(aggregaions, " o-- ");
-  output<<endl;
-  handle_dependency_list(compositions, " *-- ");
-  output<<endl;
-  handle_dependency_list(associations, " --> ");
-  output<<endl;
+  if (aggregaions.size() > 0)
+    {
+      output << endl;
+      handle_dependency_list(aggregaions, " o-- ");
+    }
+  if (compositions.size() > 0)
+    {
+      output << endl;
+      handle_dependency_list(compositions, " *-- ");
+    }
+  if (associations.size() > 0)
+    {
+      output << endl;
+      handle_dependency_list(associations, " --> ");
+    }
+
 
 
 
 
 }
 ////////////////////////////////////////////////////////////////////////////////
+void boost::throw_exception(std::exception const & e) {
+
+}
+
 int
 main(int argc, char *argv[])
 {
-  const string fileName(argv[1]);
+  // extract first parameter as filename
+  string fileName(argv[1]);
   for (int i=1; i<argc; i++)
     argv[i]=argv[i+1];
   argc--;
 
-  bool genDiagnostics = getenv("CPPPLANTDIAG")!=0;
+  genDiagnostics = getenv("CPPPLANTDIAG")!=0;
   descInnerFile = getenv("CPPLANTINNERFILE")!=0;
   descDependencies = getenv("CPPLANTDEPENDENCIES")!=0;
 
+  // construct regex for matching filenames without extension
+  string r = ".*"+boost::regex_replace(fileName,boost::regex(extensions,boost::regex_constants::extended | boost::regex_constants::icase),extensions);
+  file_regex = boost::regex(r);
 
 
-  cerr<<"Analyzing filename: "<<fileName<<endl;
   CXIndex Index = clang_createIndex(0, 0);
 
   CXTranslationUnit TU = clang_parseTranslationUnit(Index, fileName.c_str(),
@@ -588,8 +613,8 @@ main(int argc, char *argv[])
 
   output << "@startuml" << endl;
 
-  clang_visitChildren(clang_getTranslationUnitCursor(TU), visitor,
-      (CXClientData) &fileName);
+  clang_visitChildren(clang_getTranslationUnitCursor(TU), node_visitor,
+      reinterpret_cast<CXClientData>(&fileName));
 
   handle_dependencies(dependecies);
 
