@@ -1,6 +1,5 @@
 
-#include "test1.h"
-
+#include "test5.h"
 /*
 @startuml
 class FirstClass{
@@ -13,7 +12,9 @@ class FirstStructure{
 firstField   :   int
 secondField   :   bool
 char * firstMethod ( )
-long * secondMethod ( firstParameter   :   int)
+long * secondMethod ( dependencyToFirstClass   :   FirstClass*)
 }
+
+FirstStructure --> FirstClass
 @enduml
 */

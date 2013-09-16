@@ -1,6 +1,6 @@
 export LD_LIBRARY_PATH=/usr/lib/llvm-3.4/lib
 CPPLANT=../CPPPlantGenerator
-
+#set -x
 for testName in test*.cpp  
 do 
 filename_wop=$(basename "$testName")

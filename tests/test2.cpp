@@ -1,7 +1,8 @@
 
-#include "test1.h"
+#include "test2.h"
 
 /*
+ 
 @startuml
 class FirstClass{
 firstField   :   int
@@ -14,6 +15,11 @@ firstField   :   int
 secondField   :   bool
 char * firstMethod ( )
 long * secondMethod ( firstParameter   :   int)
+aggregationToFirstClass   :   FirstClass *
 }
+
+FirstStructure o-- FirstClass
 @enduml
+
+
 */

@@ -219,11 +219,18 @@ emit_on_cursor_enter(const CXCursor& cursor)
 
   if (CXCursor_FieldDecl == cursor.kind || CXCursor_VarDecl==cursor.kind)
     {
-      parse_field_or_argument(cursor);
-      dependecies.push_back(cursor);
-      output << endl;
-      // dont care about field guts - go to next sibling
-      ret_value = false;
+      CXCursor lexical_cursor_parent = clang_getCursorLexicalParent(cursor);
+
+      // variable declaration in translation unit is not of our interest
+      if (CXCursor_TranslationUnit != lexical_cursor_parent.kind)
+        {
+
+          parse_field_or_argument(cursor);
+          dependecies.push_back(cursor);
+          output << endl;
+          // dont care about field guts - go to next sibling
+          ret_value = false;
+        }
     }
 
   if (CXCursor_CXXMethod == cursor.kind)
@@ -340,14 +347,14 @@ node_visitor(CXCursor cursor, CXCursor parent, CXClientData clientData)
 
   clang_disposeString(cursor_file_location);
 
-  if (false == boost::regex_match( filename, file_regex))
+  if (false == boost::regex_match(filename, file_regex))
     return CXChildVisit_Continue;
 
   if (descInnerFile)
     {
-    std::cerr << string(numspaces, ' ');
+      std::cerr << string(numspaces, ' ');
 
-  describeCursor(cursor, std::cerr);
+      describeCursor(cursor, std::cerr);
     }
 
   bool do_we_want_to_go_deeper = emit_on_cursor_enter(cursor);
@@ -360,7 +367,6 @@ node_visitor(CXCursor cursor, CXCursor parent, CXClientData clientData)
     }
 
   emit_on_cursor_exit(cursor);
-
 
   return CXChildVisit_Continue;
 }
@@ -430,18 +436,19 @@ void handle_dependencies(dependenciesList& dep)
 {
 
   /* auto compareCXCursors = [](const CXCursor __x, const CXCursor __y)->bool const
-    {
-      return clang_equalCursors(__x,__y)!=0?true:false;
-    };
+   {
+   return clang_equalCursors(__x,__y)!=0?true:false;
+   };
    */
-  std::function<bool (const CXCursor __x, const CXCursor __y) > const  F= [](const CXCursor __x, const CXCursor __y)->bool const
-      {
-    return clang_equalCursors(__x,__y)!=0?true:false;
-      };
+  std::function<bool
+  (const CXCursor __x, const CXCursor __y)> const F =
+      [](const CXCursor __x, const CXCursor __y)->bool const
+        {
+          return clang_equalCursors(__x,__y)!=0?true:false;
+        };
 
   //typedef set<const CXCursor*, decltype(compareCXCursors)> uniqueCursorList;
   //typedef map<const CXCursor*, uniqueCursorList, decltype(compareCXCursors)> uniqueMapping;
-
 
   uniqueMapping associations;
   uniqueMapping aggregaions;
@@ -453,11 +460,13 @@ void handle_dependencies(dependenciesList& dep)
    * This loop should add source_object <relation> destination_object associations
    * to mapping
    * */
-  for (const CXCursor  dependencies : dep)
+  for (const CXCursor dependencies : dep)
     {
       CXCursor destination_cursor;
       bool are_we_interested = false;
-      auto semantic_cursor_parent = clang_getCursorSemanticParent(
+      CXCursor semantic_cursor_parent = clang_getCursorSemanticParent(
+          dependencies);
+      CXCursor lexical_cursor_parent = clang_getCursorLexicalParent(
           dependencies);
       CXCursor source_cursor = semantic_cursor_parent;
 
@@ -467,86 +476,91 @@ void handle_dependencies(dependenciesList& dep)
           describeCursor(dependencies, std::cerr);
           std::cerr << "  SEMP: ";
           describeCursor(semantic_cursor_parent, std::cerr);
+          std::cerr << " LEXP: ";
+          describeCursor(lexical_cursor_parent, std::cerr);
         }
 
-
-
-      if (CXCursor_ClassDecl == semantic_cursor_parent.kind
-          || CXCursor_StructDecl == semantic_cursor_parent.kind)
+      if (CXCursor_TranslationUnit != lexical_cursor_parent.kind)
         {
-          where_to_add = &compositions;
-          CXType cursor_type = clang_getCursorType(dependencies);
 
-          if (descDependencies)
-            cerr << RED << " ==> cursor type kind: " << cursor_type.kind << RESET
-            << endl;
-
-          if (CXType_Pointer == cursor_type.kind)
+          if (CXCursor_ClassDecl == semantic_cursor_parent.kind
+              || CXCursor_StructDecl == semantic_cursor_parent.kind)
             {
-              where_to_add = &aggregaions;
-              cursor_type = clang_getPointeeType(cursor_type);
+              where_to_add = &compositions;
+              CXType cursor_type = clang_getCursorType(dependencies);
+
               if (descDependencies)
-                cerr << GREEN << " =====> pointed type kind: "
-                << cursor_type.kind << RESET << endl;
-            }
+                cerr << RED << " ==> cursor type kind: " << cursor_type.kind
+                    << RESET << endl;
 
-          CXCursor cursor_to_declaration = clang_getTypeDeclaration(
-              cursor_type);
-
-          destination_cursor = cursor_to_declaration;
-          if (descDependencies)
-            {
-              cerr << " aggregation this is declared here: " << endl << YELLOW << " --> ";
-              describeCursor(cursor_to_declaration, cerr);
-            }
-          are_we_interested = true;
-
-
-          //aggregation / composition
-        }
-
-      if (CXCursor_CXXMethod == semantic_cursor_parent.kind)
-        {
-          where_to_add = &associations;
-          // get parent of method (this should be class or something
-          semantic_cursor_parent = clang_getCursorSemanticParent(
-              semantic_cursor_parent);
-          source_cursor = semantic_cursor_parent;
-
-          CXType cursor_type = clang_getCursorType(dependencies);
-          // association
-          if (descDependencies)
-            cerr << RED << " ==> cursor type kind: " << cursor_type.kind << RESET
-            << endl;
-          if (cursor_type.kind>100)
-            {
               if (CXType_Pointer == cursor_type.kind)
                 {
-
+                  where_to_add = &aggregaions;
                   cursor_type = clang_getPointeeType(cursor_type);
                   if (descDependencies)
                     cerr << GREEN << " =====> pointed type kind: "
-                    << cursor_type.kind << RESET << endl;
+                        << cursor_type.kind << RESET << endl;
                 }
 
               CXCursor cursor_to_declaration = clang_getTypeDeclaration(
                   cursor_type);
-              if (descDependencies)
-                {
-                cerr << " association is declared here: " << endl << YELLOW << " --> ";
-                describeCursor(cursor_to_declaration, cerr);
-                }
 
               destination_cursor = cursor_to_declaration;
+              if (descDependencies)
+                {
+                  cerr << " aggregation this is declared here: " << endl
+                      << YELLOW << " --> ";
+                  describeCursor(cursor_to_declaration, cerr);
+                }
               are_we_interested = true;
+
+              //aggregation / composition
             }
 
+          if (CXCursor_CXXMethod == semantic_cursor_parent.kind)
+            {
+              where_to_add = &associations;
+              // get parent of method (this should be class or something
+              semantic_cursor_parent = clang_getCursorSemanticParent(
+                  semantic_cursor_parent);
+              source_cursor = semantic_cursor_parent;
+
+              CXType cursor_type = clang_getCursorType(dependencies);
+              // association
+              if (descDependencies)
+                cerr << RED << " ==> cursor type kind: " << cursor_type.kind
+                    << RESET << endl;
+              if (cursor_type.kind > 100)
+                {
+                  if (CXType_Pointer == cursor_type.kind)
+                    {
+
+                      cursor_type = clang_getPointeeType(cursor_type);
+                      if (descDependencies)
+                        cerr << GREEN << " =====> pointed type kind: "
+                            << cursor_type.kind << RESET << endl;
+                    }
+
+                  CXCursor cursor_to_declaration = clang_getTypeDeclaration(
+                      cursor_type);
+                  if (descDependencies)
+                    {
+                      cerr << " association is declared here: " << endl
+                          << YELLOW << " --> ";
+                      describeCursor(cursor_to_declaration, cerr);
+                    }
+
+                  destination_cursor = cursor_to_declaration;
+                  are_we_interested = true;
+                }
+
+            }
         }
 
       if (are_we_interested && CXCursor_NoDeclFound != destination_cursor.kind)
         {
           if (descDependencies)
-            cerr<<"Adding to dependencies"<<endl;
+            cerr << "Adding to dependencies" << endl;
           (*where_to_add)[source_cursor].insert(destination_cursor);
         }
     }
@@ -565,10 +579,6 @@ void handle_dependencies(dependenciesList& dep)
       output << endl;
       handle_dependency_list(associations, " --> ");
     }
-
-
-
-
 
 }
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,8 @@
+@startuml
+class SingletonClass{
+me   :   SingletonClass *
+}
+
+SingletonClass o-- SingletonClass
+@enduml
+
