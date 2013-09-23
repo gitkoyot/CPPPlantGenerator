@@ -402,7 +402,7 @@ struct compareCXCursorsS
   bool
   operator()(const CXCursor& __x, const CXCursor& __y) const
   {
-    bool retVal = clang_equalCursors(__x, __y) == 0;
+    bool retVal = clang_equalCursors(__x, __y) != 0;
     if (retVal)
       retVal=false; // if elements are equal than they are not less
     else
@@ -560,8 +560,16 @@ void handle_dependencies(dependenciesList& dep)
       if (are_we_interested && CXCursor_NoDeclFound != destination_cursor.kind)
         {
           if (descDependencies)
-            cerr << "Adding to dependencies" << endl;
+            {
+              cerr << "Adding to dependencies" << endl;
+              cerr << "Source " ;describeCursor(source_cursor, cerr);cerr<<endl;
+              cerr << "Destination " ;describeCursor(destination_cursor, cerr);cerr<<endl;
+            }
+
           (*where_to_add)[source_cursor].insert(destination_cursor);
+          if (descDependencies)
+            cerr << "Size after add " << (*where_to_add)[source_cursor].size() << endl;
+
         }
     }
   if (aggregaions.size() > 0)
