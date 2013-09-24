@@ -9,31 +9,12 @@ LLVMLDFLAGS := $(shell $(LLVMCONFIG) --ldflags --libs $(LLVMCOMPONENTS))
 SOURCES = CPPPlantGenerator.cpp 
 
 OBJECTS = $(SOURCES:.cpp=.o)
+
 EXES = $(OBJECTS:.o=)
+
 CLANGLIBS = \
--lclangTooling\
--lclangFrontendTool\
--lclangFrontend\
--lclangDriver\
--lclangSerialization\
--lclangCodeGen\
--lclangParse\
--lclangSema\
--lclangStaticAnalyzerFrontend\
--lclangStaticAnalyzerCheckers\
--lclangStaticAnalyzerCore\
--lclangAnalysis\
--lclangARCMigrate\
--lclangRewriteFrontend\
--lclangRewriteCore\
--lclangEdit\
--lclangAST\
--lclangLex\
--lclangBasic\
 -lclang \
--lboost_regex \
-$(shell $(LLVMCONFIG) --libs)\
-                -lcurses
+-lboost_regex 
 
 all: $(OBJECTS) $(EXES)
 

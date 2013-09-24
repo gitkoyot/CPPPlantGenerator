@@ -1,0 +1,13 @@
+@startuml
+class BaseClass{
+void BaseClass ( )
+void ~BaseClass ( )
+}
+class DerivedClass{
+void DerivedClass ( )
+void ~DerivedClass ( )
+}
+
+DerivedClass --|> BaseClass
+@enduml
+

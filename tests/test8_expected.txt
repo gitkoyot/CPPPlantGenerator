@@ -1,6 +1,8 @@
 @startuml
 namespace test8WrapperNamespace #DDDDDD
 class test8{
+void test8 ( )
+void ~test8 ( )
 classComposition   :   MainClassWithDependencyToStd
 }
 end namespace 

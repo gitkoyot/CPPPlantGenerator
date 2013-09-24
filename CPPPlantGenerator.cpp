@@ -6,6 +6,8 @@
 #include <set>
 #include <functional>
 #include <map>
+#include <stack>
+
 #include <cstdlib>
 #include <cstring>
 
@@ -36,6 +38,9 @@ using namespace std;
 
 
 /*
+
+
+
 
 @startuml
 class ThisIsAssociatedClass{
@@ -80,14 +85,14 @@ const char * getMacAddress ( )
 end namespace
 
 LinkDelay.Configuration o-- LinkDelay.ConfigurationInternalData
+LinkDelay.Configuration o-- LinkDelay.Configuration
 
+LinkDelay.ConfigurationInternalData *-- std.vector
 LinkDelay.ConfigurationInternalData *-- std.string
+LinkDelay.Configuration *-- LinkDelay.ConfigurationInternalData
 
 LinkDelay.Configuration --> ThisIsAssociatedClass
-
 @enduml
-
-
 
 
 
@@ -96,7 +101,6 @@ LinkDelay.Configuration --> ThisIsAssociatedClass
 
 ////////////////////////////////////////////////////////////////////////////////
 static stringstream output;
-static int numspaces = 0;
 bool descInnerFile = false;
 bool descDependencies = false;
 bool genDiagnostics = false;
@@ -104,6 +108,28 @@ typedef vector<CXCursor> dependenciesList;
 dependenciesList dependecies;
 boost::regex file_regex; //because std still sucks
 const string extensions("(\\.cpp|\\.h|\\.c)");
+stack<CXCursor> parents;
+vector<pair<CXCursor,CXCursor> > inheritance;
+////////////////////////////////////////////////////////////////////////////////
+struct compareCXCursorsS
+{
+  bool
+  operator()(const CXCursor& __x, const CXCursor& __y) const
+  {
+    bool retVal = clang_equalCursors(__x, __y) != 0;
+    if (retVal)
+      retVal=false; // if elements are equal than they are not less
+    else
+      // elements are not equal, establish some order
+      retVal = memcmp(&__x,&__y, sizeof(__x))<0;
+
+    return retVal;
+  }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+typedef set<CXCursor, compareCXCursorsS> uniqueCursorList;
+typedef map<CXCursor, uniqueCursorList, compareCXCursorsS> uniqueMapping;
 ////////////////////////////////////////////////////////////////////////////////
 std::string
 getCursorText(CXCursor cur)
@@ -233,7 +259,13 @@ emit_on_cursor_enter(const CXCursor& cursor)
         }
     }
 
-  if (CXCursor_CXXMethod == cursor.kind)
+  if (CXCursor_CXXBaseSpecifier == cursor.kind)
+    {
+      inheritance.push_back(pair<CXCursor,CXCursor>(parents.top(),cursor));
+    }
+
+
+  if (CXCursor_CXXMethod == cursor.kind || CXCursor_Constructor == cursor.kind || CXCursor_Destructor==cursor.kind)
     {
       int num_arguments = clang_Cursor_getNumArguments(cursor);
       CXType result_type = clang_getResultType(cursor_type);
@@ -282,6 +314,25 @@ emit_on_cursor_exit(const CXCursor& cursor)
     }
 
 }
+////////////////////////////////////////////////////////////////////////////////
+string get_cursor_string(const CXCursor& cursor)
+{
+  CXString cursor_spelling = clang_getCursorSpelling(cursor);
+  string retVal = clang_getCString(cursor_spelling);
+  clang_disposeString(cursor_spelling);
+  return retVal;
+}
+////////////////////////////////////////////////////////////////////////////////
+string get_cursor_type_string(const CXCursor& cursor)
+{
+  CXType cursor_type = clang_getCursorType(cursor);
+  CXString cursor_type_spelling = clang_getTypeSpelling(cursor_type);
+
+  string retVal = clang_getCString(cursor_type_spelling);
+  clang_disposeString(cursor_type_spelling);
+  return retVal;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 void describeCursor (const CXCursor& cursor,ostream& out)
 {
@@ -352,7 +403,7 @@ node_visitor(CXCursor cursor, CXCursor parent, CXClientData clientData)
 
   if (descInnerFile)
     {
-      std::cerr << string(numspaces, ' ');
+      std::cerr << string(parents.size(), ' ');
 
       describeCursor(cursor, std::cerr);
     }
@@ -361,9 +412,9 @@ node_visitor(CXCursor cursor, CXCursor parent, CXClientData clientData)
 
   if (true == do_we_want_to_go_deeper)
     {
-      numspaces++;
+      parents.push(cursor);
       clang_visitChildren(cursor, node_visitor, (CXClientData) &fileName);
-      numspaces--;
+      parents.pop();
     }
 
   emit_on_cursor_exit(cursor);
@@ -396,26 +447,6 @@ string print_w_upper_namespaces(const CXCursor& cursor)
   return retValue;
 
 }
-////////////////////////////////////////////////////////////////////////////////
-struct compareCXCursorsS
-{
-  bool
-  operator()(const CXCursor& __x, const CXCursor& __y) const
-  {
-    bool retVal = clang_equalCursors(__x, __y) != 0;
-    if (retVal)
-      retVal=false; // if elements are equal than they are not less
-    else
-      // elements are not equal, establish some order
-      retVal = memcmp(&__x,&__y, sizeof(__x))<0;
-
-    return retVal;
-  }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-typedef set<CXCursor, compareCXCursorsS> uniqueCursorList;
-typedef map<CXCursor, uniqueCursorList, compareCXCursorsS> uniqueMapping;
 ////////////////////////////////////////////////////////////////////////////////
 void
 handle_dependency_list(const uniqueMapping& dependencies_list, string plantSign)
@@ -588,15 +619,36 @@ void handle_dependencies(dependenciesList& dep)
       handle_dependency_list(associations, " --> ");
     }
 
+  if (inheritance.size() > 0)
+    {
+      output << endl;
+      for (auto pair:inheritance)
+        {
+          output<< get_cursor_string(pair.first) <<" --|> "<< get_cursor_type_string(pair.second) <<endl;
+        }
+    }
+
 }
 ////////////////////////////////////////////////////////////////////////////////
-void boost::throw_exception(std::exception const & e) {
-
+void boost::throw_exception(std::exception const & e)
+{
+ // do nothing
 }
-
+////////////////////////////////////////////////////////////////////////////////
+void print_minimal_info(int argc, char *argv[])
+{
+  std::cerr<<argv[0]<< " sourcefile.cpp XXXX" << std::endl;
+  std::cerr<<" where XXXX are compilation flags" << std::endl;
+}
+////////////////////////////////////////////////////////////////////////////////
 int
 main(int argc, char *argv[])
 {
+  if (argc<2)
+    {
+      print_minimal_info(argc,argv);
+      exit(-1);
+    }
   // extract first parameter as filename
   string fileName(argv[1]);
   for (int i=1; i<argc; i++)
