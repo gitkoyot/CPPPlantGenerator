@@ -1,0 +1,7 @@
+@startuml
+class test10_class{
+void test10_class ( )
+void ~test10_class ( )
+}
+@enduml
+

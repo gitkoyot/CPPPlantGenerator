@@ -232,6 +232,13 @@ emit_on_cursor_enter(const CXCursor& cursor)
   CXString cursor_type_spelling = clang_getTypeSpelling(cursor_type);
   const char *cursor_type_spelling_string = clang_getCString(
       cursor_type_spelling);
+  CXCursor lexical_cursor_parent = clang_getCursorLexicalParent(cursor);
+
+
+  // skip functions, we dont care about them
+  if ( CXCursor_FunctionDecl == cursor.kind )
+    ret_value=false;
+
 
   if (CXCursor_Namespace == cursor.kind)
     {
@@ -245,7 +252,7 @@ emit_on_cursor_enter(const CXCursor& cursor)
 
   if (CXCursor_FieldDecl == cursor.kind || CXCursor_VarDecl==cursor.kind)
     {
-      CXCursor lexical_cursor_parent = clang_getCursorLexicalParent(cursor);
+
 
       // variable declaration in translation unit is not of our interest
       if (CXCursor_TranslationUnit != lexical_cursor_parent.kind)
@@ -409,6 +416,8 @@ node_visitor(CXCursor cursor, CXCursor parent, CXClientData clientData)
     }
 
   bool do_we_want_to_go_deeper = emit_on_cursor_enter(cursor);
+
+
 
   if (true == do_we_want_to_go_deeper)
     {
