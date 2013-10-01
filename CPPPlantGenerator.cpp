@@ -131,6 +131,9 @@ struct compareCXCursorsS
 typedef set<CXCursor, compareCXCursorsS> uniqueCursorList;
 typedef map<CXCursor, uniqueCursorList, compareCXCursorsS> uniqueMapping;
 ////////////////////////////////////////////////////////////////////////////////
+uniqueCursorList ignoreList;
+////////////////////////////////////////////////////////////////////////////////
+
 std::string
 getCursorText(CXCursor cur)
 {
@@ -366,14 +369,18 @@ void describeCursor (const CXCursor& cursor,ostream& out)
   CXType cursor_type = clang_getCursorType(cursor);
   CXString cursor_type_spelling = clang_getTypeSpelling(cursor_type);
 
+  unsigned is_def =  clang_isCursorDefinition(cursor);
+
+
 
   out << RED << clang_getCString(cursor_kind_spelling) << RESET <<
       GREEN << " F: " << filename << RESET
       << " L: " << line << " C: " << column << " O: " << offset << " RB "
       << range.begin_int_data << " RE " << range.end_int_data << " NARG "
-      << clang_Cursor_getNumArguments(cursor) << " T: "
+      << clang_Cursor_getNumArguments(cursor) << " is def: " << is_def << " T: "
       << clang_getCString(cursor_type_spelling) << " C: " << YELLOW
-      << clang_getCString(cursor_spelling) << RESET<< std::endl;
+      << clang_getCString(cursor_spelling) << RESET
+      << std::endl;
 
 
   clang_disposeString(cursor_kind_spelling);
@@ -407,6 +414,35 @@ node_visitor(CXCursor cursor, CXCursor parent, CXClientData clientData)
 
   if (false == boost::regex_match(filename, file_regex))
     return CXChildVisit_Continue;
+
+  unsigned is_definition = clang_isCursorDefinition(cursor);
+
+  if (0==is_definition)
+    {
+      CXCursor cursorDefinition = clang_getCursorDefinition(cursor);
+
+      if (0!=clang_Cursor_isNull(cursorDefinition))
+        {
+          // we could not find definition.. declaration has to do
+        }
+      else
+        {
+
+          ignoreList.insert(cursorDefinition);
+        }
+    }
+
+
+  if (ignoreList.find(cursor) != ignoreList.end())
+    {
+      return CXChildVisit_Continue;
+    }
+  else
+    {
+      ignoreList.insert(cursor);
+    }
+
+
 
   if (descInnerFile)
     {

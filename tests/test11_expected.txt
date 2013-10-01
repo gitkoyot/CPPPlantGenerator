@@ -1,0 +1,9 @@
+@startuml
+class Test11{
+void Test11 ( )
+void ~Test11 ( )
+int function ( a   :   int , b   :   int)
+void getVoidDefnitionInClass ( a   :   int , b   :   int)
+}
+@enduml
+
