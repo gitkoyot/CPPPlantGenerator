@@ -1,7 +1,7 @@
 @startuml
 class MainClassWithDependencyToStd{
-publicString   :   std::string
-publicVectorOfStrings   :   std::vector<std::string>
++publicString   :   std::string
++publicVectorOfStrings   :   std::vector<std::string>
 }
 
 MainClassWithDependencyToStd *-- std.vector
