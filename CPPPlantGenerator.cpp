@@ -70,6 +70,31 @@ typedef map<CXCursor, uniqueCursorList, compareCXCursorsS> uniqueMapping;
 uniqueCursorList ignoreList;
 ////////////////////////////////////////////////////////////////////////////////
 
+std::string get_string(CXString &&cx_filename)
+{
+   const char* str = clang_getCString(cx_filename);
+   std::string retVal;
+   if (str)
+     retVal=str;
+   clang_disposeString(cx_filename);
+   return retVal;
+}
+////////////////////////////////////////////////////////////////////////////////
+string
+get_cursor_spelling_string(const CXCursor& cursor)
+{
+  return get_string(clang_getCursorSpelling(cursor));
+}
+////////////////////////////////////////////////////////////////////////////////
+string
+get_cursor_type_string(const CXCursor& cursor)
+{
+  CXType cursor_type = clang_getCursorType(cursor);
+  return get_string(clang_getTypeSpelling(cursor_type));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::string
 getCursorText(CXCursor cur)
 {
@@ -81,8 +106,8 @@ getCursorText(CXCursor cur)
   unsigned int endOff;
   clang_getExpansionLocation(begin, &cxFile, 0, 0, &beginOff);
   clang_getExpansionLocation(end, 0, 0, 0, &endOff);
-  CXString cx_filename = clang_getFileName(cxFile);
-  const char* filename = clang_getCString(cx_filename);
+  string cx_filename = get_string(clang_getFileName(cxFile));
+  const char* filename = cx_filename.c_str();
   unsigned int textSize = endOff - beginOff;
 
   FILE * file = fopen(filename, "r");
@@ -121,9 +146,9 @@ displayCursorInfo(CXCursor Cursor)
     if (Cursor.kind == CXCursor_MacroInstantiation)
       printf("CXCursor_MacroInstantiation\n");
 
-    CXString String = clang_getCursorDisplayName(Cursor);
-    printf("Display: [%s]\n", clang_getCString(String));
-    clang_disposeString(String);
+    string cursor_display_name = get_string(clang_getCursorDisplayName(Cursor));
+    printf("Display: [%s]\n", cursor_display_name.c_str());
+
 
     clang_getCursorExtent(Cursor);
     CXSourceLocation loc = clang_getCursorLocation(Cursor);
@@ -132,10 +157,10 @@ displayCursorInfo(CXCursor Cursor)
     unsigned line, col, off;
     clang_getSpellingLocation(loc, &file, &line, &col, &off);
 
-    CXString strFileName = clang_getFileName(file);
-    printf("Location: %s, %u:%u:%u\n", clang_getCString(strFileName), line, col,
+    string strFileName = get_string(clang_getFileName(file));
+    printf("Location: %s, %u:%u:%u\n", strFileName.c_str(), line, col,
         off);
-    clang_disposeString(strFileName);
+
   }
   return 0;
 }
@@ -166,33 +191,20 @@ switch(access)
 void
 parse_field_or_argument(const CXCursor& cursor)
 {
-  CXString cursor_kind_spelling = clang_getCursorKindSpelling(cursor.kind);
-  CXString cursor_spelling = clang_getCursorSpelling(cursor);
-  const char *cursor_spelling_string = clang_getCString(cursor_spelling);
+  string cursor_spelling = get_string(clang_getCursorSpelling(cursor));
 
   CXType cursor_type = clang_getCursorType(cursor);
-  CXString cursor_type_spelling = clang_getTypeSpelling(cursor_type);
-  const char *cursor_type_spelling_string = clang_getCString(
-      cursor_type_spelling);
+  string cursor_type_spelling = get_string(clang_getTypeSpelling(cursor_type));
 
-  output << cursor_spelling_string << "   :   " << cursor_type_spelling_string;
-
-  clang_disposeString(cursor_spelling);
-  clang_disposeString(cursor_type_spelling);
+  output << cursor_spelling << "   :   " << cursor_type_spelling;
 }
 ////////////////////////////////////////////////////////////////////////////////
 bool
 emit_on_cursor_enter(const CXCursor& cursor)
 {
   bool ret_value = true;
-  CXString cursor_kind_spelling = clang_getCursorKindSpelling(cursor.kind);
-  CXString cursor_spelling = clang_getCursorSpelling(cursor);
-  const char *cursor_spelling_string = clang_getCString(cursor_spelling);
-
+  string cursor_spelling = get_string(clang_getCursorSpelling(cursor));
   CXType cursor_type = clang_getCursorType(cursor);
-  CXString cursor_type_spelling = clang_getTypeSpelling(cursor_type);
-  const char *cursor_type_spelling_string = clang_getCString(
-      cursor_type_spelling);
   CXCursor lexical_cursor_parent = clang_getCursorLexicalParent(cursor);
 
   // skip functions, we dont care about them
@@ -201,12 +213,12 @@ emit_on_cursor_enter(const CXCursor& cursor)
 
   if (CXCursor_Namespace == cursor.kind)
   {
-    output << "namespace " << cursor_spelling_string << " #DDDDDD" << endl;
+    output << "namespace " << cursor_spelling << " #DDDDDD" << endl;
   }
 
   if (CXCursor_ClassDecl == cursor.kind || CXCursor_StructDecl == cursor.kind)
   {
-    output << "class " << cursor_spelling_string << "{" << endl;
+    output << "class " << cursor_spelling << "{" << endl;
   }
 
   if (CXCursor_FieldDecl == cursor.kind || CXCursor_VarDecl == cursor.kind)
@@ -234,13 +246,10 @@ emit_on_cursor_enter(const CXCursor& cursor)
   {
     int num_arguments = clang_Cursor_getNumArguments(cursor);
     CXType result_type = clang_getResultType(cursor_type);
-    CXString result_type_spelling = clang_getTypeSpelling(result_type);
-    const char * result_type_spelling_string = clang_getCString(
-        result_type_spelling);
-
+    string result_type_spelling = get_string(clang_getTypeSpelling(result_type));
 
     out_access_specifier(cursor);
-    output << result_type_spelling_string << " " << cursor_spelling_string
+    output << result_type_spelling << " " << cursor_spelling
         << " ( ";
 
     for (int i = 0; i < num_arguments; i++)
@@ -256,13 +265,11 @@ emit_on_cursor_enter(const CXCursor& cursor)
     }
     output << ")" << endl;
 
-    clang_disposeString(result_type_spelling);
     ret_value = false;
   }
 
-  clang_disposeString(cursor_kind_spelling);
-  clang_disposeString(cursor_spelling);
-  clang_disposeString(cursor_type_spelling);
+
+
 
   return ret_value;
 }
@@ -282,27 +289,6 @@ emit_on_cursor_exit(const CXCursor& cursor)
 
 }
 ////////////////////////////////////////////////////////////////////////////////
-string
-get_cursor_string(const CXCursor& cursor)
-{
-  CXString cursor_spelling = clang_getCursorSpelling(cursor);
-  string retVal = clang_getCString(cursor_spelling);
-  clang_disposeString(cursor_spelling);
-  return retVal;
-}
-////////////////////////////////////////////////////////////////////////////////
-string
-get_cursor_type_string(const CXCursor& cursor)
-{
-  CXType cursor_type = clang_getCursorType(cursor);
-  CXString cursor_type_spelling = clang_getTypeSpelling(cursor_type);
-
-  string retVal = clang_getCString(cursor_type_spelling);
-  clang_disposeString(cursor_type_spelling);
-  return retVal;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 void
 describeCursor(const CXCursor& cursor, ostream& out)
 {
@@ -313,35 +299,26 @@ describeCursor(const CXCursor& cursor, ostream& out)
   CXSourceLocation loc = clang_getCursorLocation(cursor);
   clang_getFileLocation(loc, &file, &line, &column, &offset);
 
-  CXString cursor_file_location = clang_getFileName(file);
-  const char* cursor_file_location_string = clang_getCString(
-      cursor_file_location);
-
-  std::string filename =
-      cursor_file_location_string != nullptr ? cursor_file_location_string : "";
+  string cursor_file_location = get_string(clang_getFileName(file));
 
   CXTranslationUnit tu = clang_Cursor_getTranslationUnit(cursor);
   CXSourceRange range = clang_getCursorExtent(cursor);
 
-  CXString cursor_kind_spelling = clang_getCursorKindSpelling(cursor.kind);
-  CXString cursor_spelling = clang_getCursorSpelling(cursor);
+  string cursor_kind_spelling = get_string(clang_getCursorKindSpelling(cursor.kind));
+  string cursor_spelling = get_cursor_spelling_string(cursor);
 
-  CXType cursor_type = clang_getCursorType(cursor);
-  CXString cursor_type_spelling = clang_getTypeSpelling(cursor_type);
+
+  string cursor_type_spelling = get_cursor_type_string(cursor);
 
   unsigned is_def = clang_isCursorDefinition(cursor);
 
-  out << RED << clang_getCString(cursor_kind_spelling) << RESET <<
-  GREEN << " F: " << filename << RESET << " L: " << line << " C: " << column
+  out << RED << cursor_kind_spelling << RESET <<
+  GREEN << " F: " << cursor_file_location << RESET << " L: " << line << " C: " << column
       << " O: " << offset << " RB " << range.begin_int_data << " RE "
       << range.end_int_data << " NARG " << clang_Cursor_getNumArguments(cursor)
       << " is def: " << is_def << " T: "
-      << clang_getCString(cursor_type_spelling) << " C: " << YELLOW
-      << clang_getCString(cursor_spelling) << RESET << std::endl;
-
-  clang_disposeString(cursor_kind_spelling);
-  clang_disposeString(cursor_spelling);
-  clang_disposeString(cursor_type_spelling);
+      << cursor_type_spelling << " C: " << YELLOW
+      << cursor_spelling << RESET << std::endl;
 
 }
 
@@ -358,16 +335,11 @@ node_visitor(CXCursor cursor, CXCursor parent, CXClientData clientData)
   CXSourceLocation loc = clang_getCursorLocation(cursor);
   clang_getFileLocation(loc, &file, &line, &column, &offset);
 
-  CXString cursor_file_location = clang_getFileName(file);
-  const char* cursor_file_location_string = clang_getCString(
-      cursor_file_location);
+  string cursor_file_location = get_string(clang_getFileName(file));
 
-  std::string filename =
-      cursor_file_location_string != nullptr ? cursor_file_location_string : "";
 
-  clang_disposeString(cursor_file_location);
 
-  if (false == boost::regex_match(filename, file_regex))
+  if (false == boost::regex_match(cursor_file_location, file_regex))
     return CXChildVisit_Continue;
 
   unsigned is_definition = clang_isCursorDefinition(cursor);
@@ -427,8 +399,8 @@ string
 print_w_upper_namespaces(const CXCursor& cursor)
 {
   auto semantic_cursor_parent = clang_getCursorSemanticParent(cursor);
-  CXString cursor_spelling = clang_getCursorSpelling(cursor);
-  string retValue = clang_getCString(cursor_spelling);
+  string retValue = get_string(clang_getCursorSpelling(cursor));
+
 
   switch (semantic_cursor_parent.kind)
   {
@@ -625,7 +597,7 @@ handle_dependencies(dependenciesList& dep)
     output << endl;
     for (auto pair : inheritance)
     {
-      output << get_cursor_string(pair.first) << " --|> "
+      output << get_cursor_spelling_string(pair.first) << " --|> "
           << get_cursor_type_string(pair.second) << endl;
     }
   }
@@ -682,10 +654,9 @@ main(int argc, char *argv[])
     for (unsigned I = 0, N = clang_getNumDiagnostics(TU); I != N; ++I)
     {
       CXDiagnostic Diag = clang_getDiagnostic(TU, I);
-      CXString String = clang_formatDiagnostic(Diag,
-          clang_defaultDiagnosticDisplayOptions());
-      fprintf(stderr, "%s\n", clang_getCString(String));
-      clang_disposeString(String);
+      string siag_string = get_string(clang_formatDiagnostic(Diag,
+          clang_defaultDiagnosticDisplayOptions()));
+      cerr<<siag_string<<endl;
     }
 
   output << "@startuml" << endl;
