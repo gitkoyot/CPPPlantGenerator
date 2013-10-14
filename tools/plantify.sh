@@ -35,8 +35,6 @@ shift $((OPTIND-1))
 
 [ "$1" = "--" ] && shift
 
-echo "verbose=$verbose, input_file='$input_file', Leftovers: $@"
-
 if [ $verbose -gt 0 ]; then
 	echo "Verbose on."
 	export CPPPLANTDIAG=1
@@ -52,9 +50,7 @@ if [ -d "$input_dir" ]; then
 	cd $input_dir
 	for source_file in `ls -1 *.cpp` 
 	do
-		if [ 1 -eq $verbose ]; then
-			echo "Processing $source_file "
-		fi
+		echo "Processing $source_file"
 		echo "/*" > ${source_file%.*}"_plant.h"
 		$TOOL $source_file  $CXXOPTIONS >> ${source_file%.*}"_plant.h"
 		echo "*/" >> ${source_file%.*}"_plant.h"
