@@ -52,7 +52,12 @@ if [ -d "$input_dir" ]; then
 	cd $input_dir
 	for source_file in `ls -1 *.cpp` 
 	do
-		$TOOL $source_file  $CXXOPTIONS > ${source_file%.*}"_plant.h"
+		if [ 1 -eq $verbose ]; then
+			echo "Processing $source_file "
+		fi
+		echo "/*" > ${source_file%.*}"_plant.h"
+		$TOOL $source_file  $CXXOPTIONS >> ${source_file%.*}"_plant.h"
+		echo "*/" >> ${source_file%.*}"_plant.h"
 	done
    cd -
 fi
