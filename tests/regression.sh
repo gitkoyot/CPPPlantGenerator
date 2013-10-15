@@ -1,6 +1,42 @@
+#!/bin/bash
 export LD_LIBRARY_PATH=/usr/lib/llvm-3.4/lib
 CPPLANT=../CPPPlantGenerator
 #set -x
+
+function show_help {
+ echo "$0 [-h|-?] [-v] "
+}
+
+
+# A POSIX variable
+OPTIND=1         # Reset in case getopts has been used previously in the shell.
+
+# Initialize our own variables:
+verbose=0
+
+while getopts "h?v" opt; do
+    case "$opt" in
+    h|\?)
+        show_help
+        exit 0
+        ;;
+    v)  verbose=1
+        ;;
+  esac
+done
+
+shift $((OPTIND-1))
+
+[ "$1" = "--" ] && shift
+
+if [ $verbose -gt 0 ]; then
+	echo "Verbose on."
+	export CPPPLANTDIAG=1
+	export CPPLANTINNERFILE=1
+	export CPPLANTDEPENDENCIES=1
+fi
+
+
 for testName in `ls -1v test*.cpp ` 
 do 
 filename_wop=$(basename "$testName")
