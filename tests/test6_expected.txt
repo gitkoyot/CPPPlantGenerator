@@ -1,6 +1,6 @@
 @startuml
 class SingletonClass{
--me   :   SingletonClass *
+{static}-me   :   SingletonClass *
 }
 
 SingletonClass o-- SingletonClass

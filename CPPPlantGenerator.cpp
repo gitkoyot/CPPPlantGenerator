@@ -70,10 +70,10 @@ typedef map<CXCursor, uniqueCursorList, compareCXCursorsS> uniqueMapping;
 uniqueCursorList ignoreList;
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string get_string(CXString &&cx_filename)
+string get_string(CXString &&cx_filename)
 {
    const char* str = clang_getCString(cx_filename);
-   std::string retVal;
+   string retVal;
    if (str)
      retVal=str;
    clang_disposeString(cx_filename);
@@ -87,15 +87,37 @@ get_cursor_spelling_string(const CXCursor& cursor)
 }
 ////////////////////////////////////////////////////////////////////////////////
 string
-get_cursor_type_string(const CXCursor& cursor)
+get_cursor_type_spelling_string(const CXCursor& cursor)
 {
   CXType cursor_type = clang_getCursorType(cursor);
   return get_string(clang_getTypeSpelling(cursor_type));
 }
-
+////////////////////////////////////////////////////////////////////////////////
+bool check_if_vardecl_static(const CXCursor& cursor)
+{
+  CXTranslationUnit tu = clang_Cursor_getTranslationUnit(cursor);
+  CXSourceRange range = clang_getCursorExtent(cursor);
+  CXToken *tokens = 0;
+  bool retVal = false;
+  unsigned int nTokens = 0;
+  clang_tokenize(tu, range, &tokens, &nTokens);
+  for (unsigned int i = 0; i < nTokens; i++)
+  {
+    CXTokenKind kind = clang_getTokenKind(tokens[i]);
+    if (CXToken_Keyword == kind)
+    {
+      string tokenSpelling = get_string(clang_getTokenSpelling(tu, tokens[i]));
+      if (tokenSpelling=="static")
+        retVal=true;
+      break;
+    }
+  }
+  clang_disposeTokens(tu, tokens, nTokens);
+  return retVal;
+}
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string
+string
 getCursorText(CXCursor cur)
 {
   CXSourceRange range = clang_getCursorExtent(cur);
@@ -124,7 +146,7 @@ getCursorText(CXCursor cur)
   }
   pBuff[textSize] = '\0';
   fread(pBuff, 1, textSize, file);
-  std::string res(pBuff);
+  string res(pBuff);
   if (pBuff != buff)
   {
     delete[] pBuff;
@@ -191,10 +213,8 @@ switch(access)
 void
 parse_field_or_argument(const CXCursor& cursor)
 {
-  string cursor_spelling = get_string(clang_getCursorSpelling(cursor));
-
-  CXType cursor_type = clang_getCursorType(cursor);
-  string cursor_type_spelling = get_string(clang_getTypeSpelling(cursor_type));
+  string cursor_spelling = get_cursor_spelling_string(cursor);
+  string cursor_type_spelling = get_cursor_type_spelling_string(cursor);
 
   output << cursor_spelling << "   :   " << cursor_type_spelling;
 }
@@ -203,7 +223,7 @@ bool
 emit_on_cursor_enter(const CXCursor& cursor)
 {
   bool ret_value = true;
-  string cursor_spelling = get_string(clang_getCursorSpelling(cursor));
+  string cursor_spelling = get_cursor_spelling_string(cursor);
   CXType cursor_type = clang_getCursorType(cursor);
   CXCursor lexical_cursor_parent = clang_getCursorLexicalParent(cursor);
 
@@ -227,6 +247,8 @@ emit_on_cursor_enter(const CXCursor& cursor)
     // variable declaration in translation unit is not of our interest
     if (CXCursor_TranslationUnit != lexical_cursor_parent.kind)
     {
+      if (check_if_vardecl_static(cursor))
+        output<<"{static}";
       out_access_specifier(cursor);
       parse_field_or_argument(cursor);
       dependecies.push_back(cursor);
@@ -245,10 +267,15 @@ emit_on_cursor_enter(const CXCursor& cursor)
       || CXCursor_Destructor == cursor.kind)
   {
     int num_arguments = clang_Cursor_getNumArguments(cursor);
+    unsigned is_m_static = clang_CXXMethod_isStatic(cursor);
     CXType result_type = clang_getResultType(cursor_type);
     string result_type_spelling = get_string(clang_getTypeSpelling(result_type));
 
     out_access_specifier(cursor);
+
+    if (is_m_static)
+      output<<"{static}";
+
     output << result_type_spelling << " " << cursor_spelling
         << " ( ";
 
@@ -301,14 +328,14 @@ describeCursor(const CXCursor& cursor, ostream& out)
 
   string cursor_file_location = get_string(clang_getFileName(file));
 
-  CXTranslationUnit tu = clang_Cursor_getTranslationUnit(cursor);
+
   CXSourceRange range = clang_getCursorExtent(cursor);
 
   string cursor_kind_spelling = get_string(clang_getCursorKindSpelling(cursor.kind));
   string cursor_spelling = get_cursor_spelling_string(cursor);
 
 
-  string cursor_type_spelling = get_cursor_type_string(cursor);
+  string cursor_type_spelling = get_cursor_type_spelling_string(cursor);
 
   unsigned is_def = clang_isCursorDefinition(cursor);
 
@@ -326,7 +353,7 @@ describeCursor(const CXCursor& cursor, ostream& out)
 CXChildVisitResult
 node_visitor(CXCursor cursor, CXCursor parent, CXClientData clientData)
 {
-  std::string &fileName(*static_cast<std::string*>(clientData));
+  string &fileName(*static_cast<string*>(clientData));
 
   CXFile file;
   unsigned int line;
@@ -399,7 +426,7 @@ string
 print_w_upper_namespaces(const CXCursor& cursor)
 {
   auto semantic_cursor_parent = clang_getCursorSemanticParent(cursor);
-  string retValue = get_string(clang_getCursorSpelling(cursor));
+  string retValue = get_cursor_spelling_string(cursor);
 
 
   switch (semantic_cursor_parent.kind)
@@ -598,7 +625,7 @@ handle_dependencies(dependenciesList& dep)
     for (auto pair : inheritance)
     {
       output << get_cursor_spelling_string(pair.first) << " --|> "
-          << get_cursor_type_string(pair.second) << endl;
+          << get_cursor_type_spelling_string(pair.second) << endl;
     }
   }
 

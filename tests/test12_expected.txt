@@ -1,0 +1,8 @@
+@startuml
+class FirstClass{
+{static}-firstField   :   int
+-fieldThatIsNonStatic   :   int
+-{static}char * firstMethod ( )
+}
+@enduml
+
